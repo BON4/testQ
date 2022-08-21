@@ -5,14 +5,17 @@ import (
 )
 
 type Entity struct {
-	Payload string     `json:"payload"`
-	TTL *time.Duration `json:"ttl"`
+	Payload string `json:"payload"`
+	TTL *time.Time `json:"ttl"`
 }
 
-func (e Entity) GetTTL() *time.Duration {
+func (e Entity) GetTTL() *time.Time {
 	return e.TTL
 }
 
+func (e *Entity) SetTTL(t *time.Time) {
+	e.TTL = t
+}
 
 
 
