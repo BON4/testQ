@@ -5,8 +5,13 @@ import (
 )
 
 type TTLStoreEntity interface {
-	GetTTL() time.Time
-	SetTTL(time.Time)
+	GetTTL() int64
+	SetTTL(int64)
+}
+
+type TTLStore[K any, V TTLStoreEntity] interface {
+	Get(key K) (V, bool)
+	Set(key K, val V, ttl time.Duration)
 }
 
 

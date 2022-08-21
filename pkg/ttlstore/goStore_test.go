@@ -11,13 +11,16 @@ func TestGet(t *testing.T) {
 	ety := &models.Entity{
 		Payload: "Hello",
 	}
-  ms := NewMapStore[string, *models.Entity](context.Background(), time.Second)
-	ms.Set("test", ety, time.Minute)
+
+	cfg := newMapStoreConfig(time.Second/3, 1)
+	
+  ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	ms.Set("test", ety, time.Second*2)
+	time.Sleep(time.Second)
  	if providedEty, ok := ms.Get("test"); ok {
-		if ety.Payload == providedEty.Payload {
-			return
+		if !(ety.Payload == providedEty.Payload) {
+			t.Log("Payloads dont match")
 		}
-		t.Log("Payloads dont match")
 	} else {
 		t.Error("Cant get entity")
 	}
@@ -27,5 +30,5 @@ func TestGet(t *testing.T) {
 	if _, ok := ms.Get("test"); ok {
 		t.Error("Expected error, entity not deleted after ttl")
 	}
-
 }
+

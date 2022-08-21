@@ -1,26 +1,27 @@
 package ttlstore
 
 import (
-	"sync"
 	"context"
+	"sync"
 	"time"
 )
 
 type MapStore[K any, V TTLStoreEntity] struct {
 	store *sync.Map
-	ctx context.Context
+	ctx   context.Context
 }
 
-func(ms* MapStore[T,V]) runDaemon(store *sync.Map, ctx context.Context, dRt time.Duration) {
+func (ms *MapStore[T, V]) runDaemon(store *sync.Map, ctx context.Context, dRt time.Duration) {
 	tiker := time.NewTicker(dRt)
 	for {
 		select {
-		case <-ctx.Done(): return 
+		case <-ctx.Done():
+			return
 		case <-tiker.C:
 			store.Range(func(k, v any) bool {
 				if val, ok := v.(V); ok {
 					eTime := val.GetTTL()
-					if !eTime.IsZero() && eTime.After(time.Now()) {
+					if !(eTime <= 0) && eTime < time.Now().Unix() {
 						store.Delete(k)
 					}
 				}
@@ -30,30 +31,29 @@ func(ms* MapStore[T,V]) runDaemon(store *sync.Map, ctx context.Context, dRt time
 	}
 }
 
-func NewMapStore[K any, V TTLStoreEntity](ctx context.Context, daemonRefreshTime time.Duration) *MapStore[K, V] {
+func NewMapStore[K any, V TTLStoreEntity](ctx context.Context, cfg TTLStoreConfig) TTLStore[K, V] {
 	ms := &MapStore[K, V]{
 		store: &sync.Map{},
-		ctx: ctx,
+		ctx:   ctx,
 	}
 
-	go ms.runDaemon(ms.store, ms.ctx, daemonRefreshTime)
+	go ms.runDaemon(ms.store, ms.ctx, cfg.MapStore.GCRefresh)
 	return ms
 }
 
-
-func (ms* MapStore[K, V]) Set(key K, val V, ttl time.Duration) {
-	t := time.Time{}
+func (ms *MapStore[K, V]) Set(key K, val V, ttl time.Duration) {
+	var t int64 = -1
 	if ttl == 0 {
 		return
 	} else if ttl > 0 {
-		t = time.Now().Add(ttl)		
+		t = time.Now().Add(ttl).Unix()
 	}
 
 	val.SetTTL(t)
 	ms.store.Store(key, val)
 }
 
-func (ms* MapStore[K, V]) Get(key K) (V, bool) {
+func (ms *MapStore[K, V]) Get(key K) (V, bool) {
 	var ent V
 	if val, ok := ms.store.Load(key); ok {
 		if ent, ok := val.(V); ok {
@@ -62,7 +62,7 @@ func (ms* MapStore[K, V]) Get(key K) (V, bool) {
 			// 1 | 0 -> 1
 			// 0 | 1 -> 1
 			// 1 | 1 -> 1
-			if eTime.After(time.Now()) || eTime.IsZero() {
+			if eTime > time.Now().Unix() || (eTime <= 0) {
 				return ent, true
 			}
 		}
