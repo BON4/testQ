@@ -30,7 +30,7 @@ func(ms* MapStore[T,V]) runDaemon(store *sync.Map, ctx context.Context, dRt time
 	}
 }
 
-func NewMapStore[K any, V TTLStoreEntity](ctx context.Context, daemonRefreshTime time.Duration) TTLStore {
+func NewMapStore[K any, V TTLStoreEntity](ctx context.Context, daemonRefreshTime time.Duration) *MapStore[K, V] {
 	ms := &MapStore[K, V]{
 		store: &sync.Map{},
 		ctx: ctx,
@@ -49,7 +49,7 @@ func (ms* MapStore[K, V]) Set(key K, val V, ttl time.Duration) {
 		t = time.Now().Add(ttl)		
 	}
 
-	val.SetTTL(&t)
+	val.SetTTL(t)
 	ms.store.Store(key, val)
 }
 
@@ -58,9 +58,13 @@ func (ms* MapStore[K, V]) Get(key K) (V, bool) {
 	if val, ok := ms.store.Load(key); ok {
 		if ent, ok := val.(V); ok {
 			eTime := ent.GetTTL()
-			if eTime.IsZero() && eTime.Before(time.Now()) {
+			// 0 | 0 -> 0
+			// 1 | 0 -> 1
+			// 0 | 1 -> 1
+			// 1 | 1 -> 1
+			if eTime.After(time.Now()) || eTime.IsZero() {
 				return ent, true
-			}			
+			}
 		}
 	}
 	return ent, false

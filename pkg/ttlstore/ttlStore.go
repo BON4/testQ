@@ -5,10 +5,8 @@ import (
 )
 
 type TTLStoreEntity interface {
-	GetTTL() *time.Time
-	SetTTL(*time.Time)
+	GetTTL() time.Time
+	SetTTL(time.Time)
 }
 
-type TTLStore interface {
-	
-}
+
