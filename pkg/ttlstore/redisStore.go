@@ -5,13 +5,13 @@ import (
 
 	"time"
 
-	"github.com/BON4/timedQ/pkg/buffPool"
+	"github.com/BON4/timedQ/pkg/buffpool"
 	redis "github.com/go-redis/redis/v9"
 )
 
 type RedisStore[K string, V any] struct {
 	cl *redis.Client
-	bp buffPool.BufferPool
+	bp buffpool.BufferPool
 }
 
 func NewRedisStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) TTLStore[K, V] {
