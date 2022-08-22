@@ -1,8 +1,8 @@
 package ttlstore
 
 import (
-	"time"
 	"context"
+	"time"
 )
 
 type TTLStoreEntity[T any] struct {
@@ -20,5 +20,5 @@ func (te *TTLStoreEntity[T]) SetTTL(ttl int64) {
 
 type TTLStore[K string, V any] interface {
 	Get(ctx context.Context, key K) (V, bool)
-	Set(ctx context.Context, key K, val V, ttl time.Duration)
+	Set(ctx context.Context, key K, val V, ttl time.Duration) error
 }

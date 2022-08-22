@@ -19,6 +19,20 @@ type TTLStoreConfig struct {
 	} `yaml:"redis"`
 }
 
+func newRedisStoreConfig(addr string, password string, DB int) TTLStoreConfig {
+	return TTLStoreConfig{
+		RedisStore: struct {
+			Addr     string `yaml:"addr"`
+			Password string `yaml:"password"`
+			DB       int    `yaml:"db"`
+		}{
+			Addr:     addr,
+			Password: password,
+			DB:       DB,
+		},
+	}
+}
+
 func newMapStoreConfig(GCRefresh time.Duration, GCWorkers uint) TTLStoreConfig {
 
 	return TTLStoreConfig{

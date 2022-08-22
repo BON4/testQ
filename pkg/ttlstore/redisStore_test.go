@@ -8,17 +8,16 @@ import (
 	models "github.com/BON4/timedQ/internal/models"
 )
 
-func TestGet(t *testing.T) {
+func TestRedisGetSet(t *testing.T) {
+	cfg := newRedisStoreConfig("localhost:6379", "", 0)
 	ety := &models.Entity{
 		Payload: "Hello",
 	}
 
-	cfg := newMapStoreConfig(time.Second/3, 1)
-
-	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
-	ms.Set(context.Background(), "test", ety, time.Second*2)
+	reds := NewRedisStore[string, *models.Entity](context.Background(), cfg)
+	reds.Set(context.Background(), "test", ety, time.Second*2)
 	time.Sleep(time.Second)
-	if providedEty, ok := ms.Get(context.Background(), "test"); ok {
+	if providedEty, ok := reds.Get(context.Background(), "test"); ok {
 		if !(ety.Payload == providedEty.Payload) {
 			t.Log("Payloads dont match")
 		}
@@ -28,7 +27,8 @@ func TestGet(t *testing.T) {
 
 	time.Sleep(time.Second * 2)
 
-	if _, ok := ms.Get(context.Background(), "test"); ok {
+	if _, ok := reds.Get(context.Background(), "test"); ok {
 		t.Error("Expected error, entity not deleted after ttl")
 	}
+
 }
