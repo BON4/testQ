@@ -1,31 +1,32 @@
 package ttlstore
 
 import (
-	"time"
 	"os"
+	"time"
+
 	"gopkg.in/yaml.v3"
 )
 
 type TTLStoreConfig struct {
 	MapStore struct {
 		GCRefresh time.Duration `yaml:"gc-refresh-time"`
-		GCWorkers uint `yaml:"gc-workers-num"`
+		GCWorkers uint          `yaml:"gc-workers-num"`
 	} `yaml:"map"`
 	RedisStore struct {
-		Addr string `yaml:"addr"`
+		Addr     string `yaml:"addr"`
 		Password string `yaml:"password"`
-		DB int `yaml:"db"`
+		DB       int    `yaml:"db"`
 	} `yaml:"redis"`
 }
 
 func newMapStoreConfig(GCRefresh time.Duration, GCWorkers uint) TTLStoreConfig {
 
 	return TTLStoreConfig{
-		MapStore: struct{
-		GCRefresh time.Duration `yaml:"gc-refresh-time"`
-		GCWorkers uint `yaml:"gc-workers-num"`
+		MapStore: struct {
+			GCRefresh time.Duration `yaml:"gc-refresh-time"`
+			GCWorkers uint          `yaml:"gc-workers-num"`
 		}{
-			GCRefresh: time.Second/3,
+			GCRefresh: time.Second / 3,
 			GCWorkers: 1,
 		},
 	}
