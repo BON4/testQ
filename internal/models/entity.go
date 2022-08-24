@@ -1,19 +1,18 @@
 package entity
 
-import (
-	"time"
-)
 
 type Entity struct {
 	Payload string `json:"payload"`
-	TTL *time.Time `json:"ttl"`
+	TTL     int64  `json:"ttl"`
 }
 
-func (e Entity) GetTTL() *time.Time {
+//TODO: compare perfomanse with passing time by ref (*int64)
+//or by using UNIX timestamp
+func (e Entity) GetTTL() int64  {
 	return e.TTL
 }
 
-func (e *Entity) SetTTL(t *time.Time) {
+func (e *Entity) SetTTL(t int64) {
 	e.TTL = t
 }
 

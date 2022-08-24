@@ -27,9 +27,9 @@ func (rs *RedisStore[K, V]) Set(ctx context.Context, key K, val V, ttl time.Dura
 	// TODO: maby intoduce interface to allow user implement encode/decode
 	switch any(val).(type) {
 	case string:
-		return rs.cl.SetEx(ctx, string(key), val, ttl).Err()
+		return rs.cl.Set(ctx, string(key), val, ttl).Err()
 	case []byte:
-		return rs.cl.SetEx(ctx, string(key), val, ttl).Err()
+		return rs.cl.Set(ctx, string(key), val, ttl).Err()
 	default:
 		var buf bytes.Buffer
 		enc := gob.NewEncoder(&buf)
@@ -37,7 +37,7 @@ func (rs *RedisStore[K, V]) Set(ctx context.Context, key K, val V, ttl time.Dura
 			return err
 		}
 
-		return rs.cl.SetEx(ctx, string(key), buf.Bytes(), ttl).Err()
+		return rs.cl.Set(ctx, string(key), buf.Bytes(), ttl).Err()
 	}
 }
 
