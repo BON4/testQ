@@ -40,20 +40,27 @@ func TestMapGetSet(t *testing.T) {
 func TestMapLoad(t *testing.T) {
 	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db")
 
-	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	for i := 0; i < 4; i++ {
+		ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 
-	for i := 0; i < 5; i++ {
-		ety := &models.Entity{
-			Payload: fmt.Sprintf("test:%d", i),
+		for i := 0; i < 5; i++ {
+			ety := &models.Entity{
+				Payload: fmt.Sprintf("test:%d", i),
+			}
+
+			ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1)
 		}
 
-		ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1)
+		time.Sleep(time.Second / 2)
+
+		ms.Close()
 	}
 
-	time.Sleep(time.Second)
-	if err := ms.Load(); err != nil {
+	newMs := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	if err := newMs.Load(); err != nil {
 		t.Error(err)
 	}
+	newMs.Close()
 }
 
 func TestRedisGetSet(t *testing.T) {

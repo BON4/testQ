@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/hex"
+	"fmt"
 	"io"
-	"os"
 	"sync"
 	"time"
+
+	"github.com/BON4/timedQ/pkg/dumpfile"
 )
 
 var SEP, _ = hex.DecodeString("5fff81030101406d6170456e74697479")
@@ -38,41 +40,51 @@ func mapEtitySplitFunc(data []byte, atEOF bool) (advance int, token []byte, err 
 	return 0, nil, nil
 }
 
+type closer func()
+
 type MapStore[K string, V any] struct {
-	store *sync.Map
-	ctx   context.Context
-	save  chan mapEntity[K, V]
-	cfg   TTLStoreConfig
+	wg     *sync.WaitGroup
+	cancel context.CancelFunc
+	store  *sync.Map
+	ctx    context.Context
+	save   chan mapEntity[K, V]
+	cfg    TTLStoreConfig
+	dump   io.ReadWriteCloser
 }
 
-func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, V], path string) {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0766)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
+func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, V], wg *sync.WaitGroup, file io.Writer) {
+	wg.Add(1)
+
+	defer fmt.Println("Save Done")
+	defer wg.Done()
+
 	enc := gob.NewEncoder(file)
 	for {
 		select {
-		case <-ctx.Done():
-			//SET FLAG TO DONE. WHEN ALL SAVED EXIT.
-			return
 		case data := <-kv:
-
+			fmt.Println(data)
 			//TODO: provide using custom encode algorithm
 			if err := enc.Encode(data); err != nil {
 				//TODO: Log err
+				panic(err)
 			}
+			fmt.Printf("Done %s\n", data.Key)
+		case <-ctx.Done():
+			//SET FLAG TO DONE. WHEN ALL SAVED EXIT.
+			return
 		}
 	}
 }
 
-func runGcDaemon[K string, V any](store *sync.Map, ctx context.Context, dRt time.Duration) {
+func runGcDaemon[K string, V any](ctx context.Context, store *sync.Map, wg *sync.WaitGroup, dRt time.Duration) {
+	wg.Add(1)
+
+	defer fmt.Println("GC Done")
+	defer wg.Done()
+
 	tiker := time.NewTicker(dRt)
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case <-tiker.C:
 			store.Range(func(k, v any) bool {
 				if val, ok := v.(TTLStoreEntity[V]); ok {
@@ -83,32 +95,47 @@ func runGcDaemon[K string, V any](store *sync.Map, ctx context.Context, dRt time
 				}
 				return true
 			})
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
+// TODO: handle error
 func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) *MapStore[K, V] {
+	df, err := dumpfile.NewDumpFile(cfg.MapStore.SavePath)
+	if err != nil {
+		panic(err)
+	}
+
+	msctx, cancel := context.WithCancel(ctx)
+
 	ms := &MapStore[K, V]{
-		store: &sync.Map{},
-		ctx:   ctx,
+		store:  &sync.Map{},
+		ctx:    msctx,
+		cancel: cancel,
 		//TODO: CHANEL SIZE?
 		save: make(chan mapEntity[K, V], 100),
 		cfg:  cfg,
+		dump: df,
+		wg:   &sync.WaitGroup{},
 	}
 
-	go runGcDaemon[K, V](ms.store, ms.ctx, cfg.MapStore.GCRefresh)
-	go runSaveDaemon[K, V](ctx, ms.save, cfg.MapStore.SavePath)
+	go runGcDaemon[K, V](msctx, ms.store, ms.wg, cfg.MapStore.GCRefresh)
+	go runSaveDaemon[K, V](msctx, ms.save, ms.wg, ms.dump)
 
 	return ms
 }
 
-func (ms *MapStore[K, V]) Load() error {
-	file, err := os.OpenFile(ms.cfg.MapStore.SavePath, os.O_RDONLY, 0644)
-	if err != nil {
-		return err
-	}
+func (ms *MapStore[K, V]) Close() error {
+	ms.cancel()
+	fmt.Println("waiting")
+	ms.wg.Wait()
+	return ms.dump.Close()
+}
 
-	fileBuf := bufio.NewScanner(file)
+func (ms *MapStore[K, V]) Load() error {
+	fileBuf := bufio.NewScanner(ms.dump)
 
 	fileBuf.Split(mapEtitySplitFunc)
 
@@ -125,6 +152,7 @@ func (ms *MapStore[K, V]) Load() error {
 						return err
 					}
 				}
+				fmt.Println(ent.Key, ent.Val)
 				ms.store.Store(ent.Key, ent.Val)
 			}
 		}
