@@ -3,6 +3,7 @@ package ttlstore
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ func TestMapGetSet(t *testing.T) {
 		Payload: "Hello\n",
 	}
 
-	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db")
+	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 	ms.Set(context.Background(), "test", ety, time.Second*2)
@@ -38,12 +39,15 @@ func TestMapGetSet(t *testing.T) {
 
 // TODO: Create proper test for Load
 func TestMapLoad(t *testing.T) {
-	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db")
+	filename := "#temp.db"
+	os.Remove(filename)
 
-	for i := 0; i < 4; i++ {
+	cfg := newMapStoreConfig(time.Second/3, 1, filename, true)
+
+	for i := 0; i < 3; i++ {
 		ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 10000; i++ {
 			ety := &models.Entity{
 				Payload: fmt.Sprintf("test:%d", i),
 			}
@@ -56,11 +60,21 @@ func TestMapLoad(t *testing.T) {
 		ms.Close()
 	}
 
-	newMs := NewMapStore[string, *models.Entity](context.Background(), cfg)
-	if err := newMs.Load(); err != nil {
+	// newMs := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	// if err := newMs.Load(); err != nil {
+	// 	t.Error(err)
+	// }
+	// newMs.Close()
+
+	if stat, err := os.Stat(filename); err == nil {
+		t.Logf("File Size: %d mb", stat.Size()/1000)
+	} else {
 		t.Error(err)
 	}
-	newMs.Close()
+
+	if err := os.Remove(filename); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestRedisGetSet(t *testing.T) {
@@ -100,7 +114,7 @@ func randSeq(n int) string {
 
 func BenchmarkMapGetSet(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
-	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db")
+	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 

@@ -23,6 +23,14 @@ func NewRedisStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) TTL
 	})}
 }
 
+func (rs *RedisStore[K, V]) Close() error {
+	return rs.cl.Close()
+}
+
+func (rs *RedisStore[K, V]) Load() error {
+	return nil
+}
+
 func (rs *RedisStore[K, V]) Set(ctx context.Context, key K, val V, ttl time.Duration) error {
 	// TODO: maby intoduce interface to allow user implement encode/decode
 	switch any(val).(type) {

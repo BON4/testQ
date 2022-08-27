@@ -12,6 +12,7 @@ type TTLStoreConfig struct {
 		GCRefresh time.Duration `yaml:"gc-refresh-time"`
 		GCWorkers uint          `yaml:"gc-workers-num"`
 		SavePath  string        `yaml:"save-path"`
+		Save      bool          `yaml:"save"`
 	} `yaml:"map"`
 	RedisStore struct {
 		Addr     string `yaml:"addr"`
@@ -34,17 +35,19 @@ func newRedisStoreConfig(addr string, password string, DB int) TTLStoreConfig {
 	}
 }
 
-func newMapStoreConfig(GCRefresh time.Duration, GCWorkers uint, path string) TTLStoreConfig {
+func newMapStoreConfig(GCRefresh time.Duration, GCWorkers uint, path string, save bool) TTLStoreConfig {
 
 	return TTLStoreConfig{
 		MapStore: struct {
 			GCRefresh time.Duration `yaml:"gc-refresh-time"`
 			GCWorkers uint          `yaml:"gc-workers-num"`
 			SavePath  string        `yaml:"save-path"`
+			Save      bool          `yaml:"save"`
 		}{
 			GCRefresh: time.Second / 3,
 			GCWorkers: 1,
 			SavePath:  path,
+			Save:      save,
 		},
 	}
 }

@@ -21,4 +21,6 @@ func (te *TTLStoreEntity[T]) SetTTL(ttl int64) {
 type TTLStore[K string, V any] interface {
 	Get(ctx context.Context, key K) (V, bool)
 	Set(ctx context.Context, key K, val V, ttl time.Duration) error
+	Load() error
+	Close() error
 }
