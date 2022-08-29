@@ -37,6 +37,52 @@ func TestMapGetSet(t *testing.T) {
 	}
 }
 
+func TestMultipleInstans(t *testing.T) {
+	n := 1000
+	ents := make(map[string]models.Entity, n)
+
+	ctx := context.Background()
+
+	cfg1 := newMapStoreConfig(time.Second/3, 1, "#temp1.db", false)
+	cfg2 := newMapStoreConfig(time.Second/3, 1, "#temp2.db", false)
+
+	store1 := NewMapStore[string, *models.Entity](context.Background(), cfg1)
+	store2 := NewMapStore[string, *models.Entity](context.Background(), cfg2)
+
+	for i := 0; i < n; i++ {
+		key := fmt.Sprintf("%d", i)
+		val := models.Entity{
+			Payload: fmt.Sprintf("test:%d", i),
+		}
+		ents[key] = val
+
+		if i < n/2 {
+			if err := store1.Set(ctx, key, &val, 0); err != nil {
+				t.Error(err)
+			}
+		} else {
+			if err := store2.Set(ctx, key, &val, 0); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+
+	for k, v := range ents {
+		if providedEty, ok := store1.Get(ctx, k); ok {
+			if !(v.Payload == providedEty.Payload) {
+				t.Log("Payloads dont match")
+			}
+		} else if providedEty, ok := store2.Get(ctx, k); ok {
+			if !(v.Payload == providedEty.Payload) {
+				t.Log("Payloads dont match")
+			}
+		} else {
+			t.Errorf("Cant find entry with k:%s v:%s", k, v.Payload)
+		}
+	}
+
+}
+
 // TODO: Create proper test for Load
 func TestMapLoad(t *testing.T) {
 	filename := "#temp.db"
@@ -60,17 +106,17 @@ func TestMapLoad(t *testing.T) {
 		ms.Close()
 	}
 
-	// newMs := NewMapStore[string, *models.Entity](context.Background(), cfg)
-	// if err := newMs.Load(); err != nil {
-	// 	t.Error(err)
-	// }
-	// newMs.Close()
-
 	if stat, err := os.Stat(filename); err == nil {
 		t.Logf("File Size: %d mb", stat.Size()/1000)
 	} else {
 		t.Error(err)
 	}
+
+	newMs := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	if err := newMs.Load(); err != nil {
+		t.Error(err)
+	}
+	newMs.Close()
 
 	if err := os.Remove(filename); err != nil {
 		t.Error(err)
