@@ -17,7 +17,7 @@ func TestManager(t *testing.T) {
 	stores := make([]*ttlstore.MapStore[string, string], storeCount)
 
 	for i := 0; i < len(stores); i++ {
-		path := fmt.Sprintf("/home/home/go/src/timedQ/internal/workers/temp%d.db", i)
+		path := fmt.Sprintf("/home/home/go/src/timedQ/internal/workers/#temp%d.db", i)
 		stores[i] = ttlstore.NewMapStore[string, string](ctx, ttlstore.NewMapStoreConfig(time.Second, 1, path, true))
 		if err := stores[i].Load(); err != nil {
 			t.Logf("Error at %s:", path)
