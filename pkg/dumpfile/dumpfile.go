@@ -1,6 +1,7 @@
 package dumpfile
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -26,8 +27,9 @@ func NewDumpFile(path string) (io.ReadWriteCloser, error) {
 
 	var err error
 
-	df.writer, err = os.OpenFile(df.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0766)
+	df.writer, err = os.OpenFile(df.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 

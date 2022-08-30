@@ -13,14 +13,35 @@ import (
 	"github.com/BON4/timedQ/pkg/dumpfile"
 )
 
-// Separator in gob encoded file, where 5fff81030101406d6170456e74697479 - _....@mapEntity in HEX
-var SEP, _ = hex.DecodeString("5fff81030101406d6170456e74697479")
+// Separator in gob encoded file, where 6d6170456e74697479 - _....@mapEntity in HEX
+var SEP, _ = hex.DecodeString("6d6170456e74697479")
+
+// var SEP, _ = hex.DecodeString("5fff81030101406d6170456e74697479")
+var PRE_SEP_LEN = 16
 var SEP_LEN = len(SEP)
 
 type mapEntity[K string, V any] struct {
 	Key K
 	Val V
 }
+
+// func mapEtitySplitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
+// 	dataLen := len(data)
+
+// 	if atEOF && dataLen == 0 {
+// 		return 0, nil, nil
+// 	}
+
+// 	if i := bytes.Index(data, SEP); i >= 0 {
+// 		return i + SEP_LEN, data[0:i], nil
+// 	}
+
+// 	if atEOF {
+// 		return dataLen, data, bufio.ErrFinalToken
+// 	}
+
+// 	return 0, nil, nil
+// }
 
 func mapEtitySplitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	dataLen := len(data)
@@ -30,6 +51,7 @@ func mapEtitySplitFunc(data []byte, atEOF bool) (advance int, token []byte, err 
 	}
 
 	if i := bytes.Index(data, SEP); i >= 0 {
+		//i += SEP_LEN
 		return i + SEP_LEN, data[0:i], nil
 	}
 
@@ -96,7 +118,7 @@ func runGcDaemon[K string, V any](ctx context.Context, store *sync.Map, wg *sync
 }
 
 // TODO: handle error
-func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) TTLStore[K, V] {
+func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) *MapStore[K, V] {
 	msctx, cancel := context.WithCancel(ctx)
 
 	ms := &MapStore[K, V]{
@@ -134,6 +156,42 @@ func (ms *MapStore[K, V]) Close() error {
 	return nil
 }
 
+// func (ms *MapStore[K, V]) Load() error {
+// 	if ms.cfg.MapStore.Save {
+// 		fileBuf := bufio.NewScanner(ms.dump)
+
+// 		fileBuf.Split(mapEtitySplitFunc)
+
+// 		var ent mapEntity[K, V]
+// 		for fileBuf.Scan() {
+// 			b := fileBuf.Bytes()
+// 			if len(b) > 0 {
+// 				fmt.Printf("%x\n", append(SEP, b...))
+// 				dec := gob.NewDecoder(bytes.NewReader(append(SEP, b...)))
+// 				for {
+// 					if err := dec.Decode(&ent); err != nil {
+// 						if err == io.EOF {
+// 							break
+// 						} else {
+// 							return err
+// 						}
+// 					}
+// 					ms.store.Store(ent.Key, ent.Val)
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+// Using custom split function we will get output in bytes where:
+// FIRST SCAN:
+// *******@mapEntity
+// ^_____^ - this is pre_separator (always len of 7)
+//
+// SECOND SCAN:
+// separator ... pre_sepator
+// ..............^__________ - now pre_separator will be at the end, we need to trim it from end and append it to start.
 func (ms *MapStore[K, V]) Load() error {
 	if ms.cfg.MapStore.Save {
 		fileBuf := bufio.NewScanner(ms.dump)
@@ -141,10 +199,13 @@ func (ms *MapStore[K, V]) Load() error {
 		fileBuf.Split(mapEtitySplitFunc)
 
 		var ent mapEntity[K, V]
+		var pre_separator []byte = SEP
 		for fileBuf.Scan() {
 			b := fileBuf.Bytes()
-			if len(b) > 0 {
-				dec := gob.NewDecoder(bytes.NewReader(append(SEP, b...)))
+			if len(b) > 7 {
+				encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
+
+				dec := gob.NewDecoder(bytes.NewReader(encoded))
 				for {
 					if err := dec.Decode(&ent); err != nil {
 						if err == io.EOF {
@@ -155,6 +216,9 @@ func (ms *MapStore[K, V]) Load() error {
 					}
 					ms.store.Store(ent.Key, ent.Val)
 				}
+			} else {
+				// Store pre_separator value
+				pre_separator = append(b, SEP...)
 			}
 		}
 	}

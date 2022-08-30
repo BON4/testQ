@@ -17,7 +17,7 @@ func TestMapGetSet(t *testing.T) {
 		Payload: "Hello\n",
 	}
 
-	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db", false)
+	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 	ms.Set(context.Background(), "test", ety, time.Second*2)
@@ -43,8 +43,8 @@ func TestMultipleInstans(t *testing.T) {
 
 	ctx := context.Background()
 
-	cfg1 := newMapStoreConfig(time.Second/3, 1, "#temp1.db", false)
-	cfg2 := newMapStoreConfig(time.Second/3, 1, "#temp2.db", false)
+	cfg1 := NewMapStoreConfig(time.Second/3, 1, "#temp1.db", false)
+	cfg2 := NewMapStoreConfig(time.Second/3, 1, "#temp2.db", false)
 
 	store1 := NewMapStore[string, *models.Entity](context.Background(), cfg1)
 	store2 := NewMapStore[string, *models.Entity](context.Background(), cfg2)
@@ -88,12 +88,12 @@ func TestMapLoad(t *testing.T) {
 	filename := "#temp.db"
 	os.Remove(filename)
 
-	cfg := newMapStoreConfig(time.Second/3, 1, filename, true)
+	cfg := NewMapStoreConfig(time.Second/3, 1, filename, true)
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 
-		for i := 0; i < 10000; i++ {
+		for i := 0; i < 1; i++ {
 			ety := &models.Entity{
 				Payload: fmt.Sprintf("test:%d", i),
 			}
@@ -160,7 +160,7 @@ func randSeq(n int) string {
 
 func BenchmarkMapGetSet(b *testing.B) {
 	rand.Seed(time.Now().UnixNano())
-	cfg := newMapStoreConfig(time.Second/3, 1, "#temp.db", false)
+	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 

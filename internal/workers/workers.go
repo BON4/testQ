@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,7 +32,7 @@ func (w *Worker) Listen(ctx context.Context, taskChan chan *Task, wg *sync.WaitG
 				//...
 
 				//Mutate val with found value
-				val = "1337"
+				val = strings.Repeat(t.Key, 3)
 			}
 
 			t.RespChan <- val

@@ -2,8 +2,6 @@ package workers
 
 import (
 	"time"
-
-	"github.com/BON4/timedQ/pkg/ttlstore"
 )
 
 type ManagerConfig struct {
@@ -13,7 +11,7 @@ type ManagerConfig struct {
 	} `yaml:"manager"`
 }
 
-func newManagerConfig(WorkerNum uint, ValTTL time.Duration, StoreCfg ttlstore.TTLStoreConfig) ManagerConfig {
+func newManagerConfig(WorkerNum uint, ValTTL time.Duration) ManagerConfig {
 
 	return ManagerConfig{
 		Manager: struct {

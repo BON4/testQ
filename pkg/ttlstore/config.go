@@ -35,7 +35,7 @@ func newRedisStoreConfig(addr string, password string, DB int) TTLStoreConfig {
 	}
 }
 
-func newMapStoreConfig(GCRefresh time.Duration, GCWorkers uint, path string, save bool) TTLStoreConfig {
+func NewMapStoreConfig(GCRefresh time.Duration, GCWorkers uint, path string, save bool) TTLStoreConfig {
 
 	return TTLStoreConfig{
 		MapStore: struct {
