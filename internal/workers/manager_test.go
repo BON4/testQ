@@ -18,7 +18,7 @@ func TestManager(t *testing.T) {
 
 	for i := 0; i < len(stores); i++ {
 		path := fmt.Sprintf("/home/home/go/src/timedQ/internal/workers/#temp%d.db", i)
-		stores[i] = ttlstore.NewMapStore[string, string](ctx, ttlstore.NewMapStoreConfig(time.Second, 1, path, true))
+		stores[i] = ttlstore.NewMapStore[string, string](ctx, ttlstore.NewMapStoreConfig(time.Second/3, 1, path, true))
 		if err := stores[i].Load(); err != nil {
 			t.Logf("Error at %s:", path)
 			t.Error(err)
@@ -32,9 +32,11 @@ func TestManager(t *testing.T) {
 
 	wm.Run()
 
-	res := wm.Get("test|")
+	//res := wm.Get("test|")
 
-	t.Logf("Got: %s", res)
+	//t.Logf("Got: %s", res)
+
+	time.Sleep(time.Second * 2)
 
 	wm.Stop()
 }

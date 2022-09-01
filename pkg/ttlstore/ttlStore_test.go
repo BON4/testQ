@@ -20,6 +20,13 @@ func TestMapGetSet(t *testing.T) {
 	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
+
+	if err := ms.Run(); err != nil {
+		t.Error(err)
+	}
+
+	defer ms.Close()
+
 	ms.Set(context.Background(), "test", ety, time.Second*2)
 	time.Sleep(time.Second)
 	if providedEty, ok := ms.Get(context.Background(), "test"); ok {
@@ -47,7 +54,20 @@ func TestMultipleInstans(t *testing.T) {
 	cfg2 := NewMapStoreConfig(time.Second/3, 1, "#temp2.db", false)
 
 	store1 := NewMapStore[string, *models.Entity](context.Background(), cfg1)
+
+	if err := store1.Run(); err != nil {
+		t.Error(err)
+	}
+
+	defer store1.Close()
+
 	store2 := NewMapStore[string, *models.Entity](context.Background(), cfg2)
+
+	if err := store2.Run(); err != nil {
+		t.Error(err)
+	}
+
+	defer store2.Close()
 
 	for i := 0; i < n; i++ {
 		key := fmt.Sprintf("%d", i)
@@ -57,11 +77,11 @@ func TestMultipleInstans(t *testing.T) {
 		ents[key] = val
 
 		if i < n/2 {
-			if err := store1.Set(ctx, key, &val, 0); err != nil {
+			if err := store1.Set(ctx, key, &val, -1); err != nil {
 				t.Error(err)
 			}
 		} else {
-			if err := store2.Set(ctx, key, &val, 0); err != nil {
+			if err := store2.Set(ctx, key, &val, -1); err != nil {
 				t.Error(err)
 			}
 		}
@@ -90,10 +110,14 @@ func TestMapLoad(t *testing.T) {
 
 	cfg := NewMapStoreConfig(time.Second/3, 1, filename, true)
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 3; i++ {
 		ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
 
-		for i := 0; i < 1; i++ {
+		if err := ms.Run(); err != nil {
+			t.Error(err)
+		}
+
+		for i := 0; i < 5; i++ {
 			ety := &models.Entity{
 				Payload: fmt.Sprintf("test:%d", i),
 			}
@@ -116,35 +140,9 @@ func TestMapLoad(t *testing.T) {
 	if err := newMs.Load(); err != nil {
 		t.Error(err)
 	}
-	newMs.Close()
 
 	if err := os.Remove(filename); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestRedisGetSet(t *testing.T) {
-	ety := &models.Entity{
-		Payload: "Hello",
-	}
-
-	cfg := newRedisStoreConfig("localhost:6379", "", 0)
-
-	reds := NewRedisStore[string, *models.Entity](context.Background(), cfg)
-	reds.Set(context.Background(), "test", ety, time.Second*2)
-	time.Sleep(time.Second)
-	if providedEty, ok := reds.Get(context.Background(), "test"); ok {
-		if !(ety.Payload == providedEty.Payload) {
-			t.Log("Payloads dont match")
-		}
-	} else {
-		t.Error("Cant get entity")
-	}
-
-	time.Sleep(time.Second * 2)
-
-	if _, ok := reds.Get(context.Background(), "test"); ok {
-		t.Error("Expected error, entity not deleted after ttl")
 	}
 }
 
@@ -163,37 +161,13 @@ func BenchmarkMapGetSet(b *testing.B) {
 	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
 
 	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
-
+	defer ms.Close()
 	for i := 0; i < b.N; i++ {
 		key := randSeq(10)
 		ety := &models.Entity{
 			Payload: randSeq(40),
 		}
 		ms.Set(context.Background(), key, ety, -1)
-		if providedEty, ok := ms.Get(context.Background(), key); ok {
-			if !(ety.Payload == providedEty.Payload) {
-				b.Log("Payloads dont match")
-			}
-		} else {
-			b.Error("Cant get entity")
-		}
-	}
-}
-
-func BenchmarkRedisGetSet(b *testing.B) {
-	rand.Seed(time.Now().UnixNano())
-	cfg := newRedisStoreConfig("localhost:6379", "", 0)
-
-	ms := NewRedisStore[string, *models.Entity](context.Background(), cfg)
-
-	for i := 0; i < b.N; i++ {
-		key := randSeq(10)
-		ety := &models.Entity{
-			Payload: randSeq(40),
-		}
-		if err := ms.Set(context.Background(), key, ety, 0); err != nil {
-			b.Error(err)
-		}
 		if providedEty, ok := ms.Get(context.Background(), key); ok {
 			if !(ety.Payload == providedEty.Payload) {
 				b.Log("Payloads dont match")

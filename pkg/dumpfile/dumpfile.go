@@ -2,7 +2,6 @@ package dumpfile
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
@@ -16,7 +15,7 @@ type DumpFile struct {
 }
 
 // NewDumpFile - Creates Dump File, if file name is not specified it's creating file with default name
-func NewDumpFile(path string) (io.ReadWriteCloser, error) {
+func NewDumpFile(path string) (*DumpFile, error) {
 	df := &DumpFile{}
 	dir, fname := filepath.Split(path)
 	if len(fname) == 0 {
@@ -27,14 +26,14 @@ func NewDumpFile(path string) (io.ReadWriteCloser, error) {
 
 	var err error
 
-	df.writer, err = os.OpenFile(df.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	df.reader, err = os.OpenFile(df.path, os.O_CREATE|os.O_RDONLY, 0666)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 
-	df.reader, err = os.OpenFile(df.path, os.O_RDONLY, 0644)
+	df.writer, err = os.OpenFile(df.path, os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
