@@ -12,6 +12,60 @@ import (
 	models "github.com/BON4/timedQ/internal/models"
 )
 
+type TestStruct struct {
+	A int64
+	B int64
+	C int64
+}
+
+func TestMapLarge(t *testing.T) {
+	n := 2
+	m := 200
+
+	filename := "#temp.db"
+	os.Remove(filename)
+
+	cfg := NewMapStoreConfig(time.Second/3, 1, filename, true)
+
+	for i := 0; i < n; i++ {
+		ms := NewMapStore[string, *TestStruct](context.Background(), cfg)
+		if err := ms.Load(); err != nil {
+			t.Error(err)
+			return
+		}
+
+		if err := ms.Run(); err != nil {
+			t.Error(err)
+			return
+		}
+
+		for i := 0; i < m; i++ {
+			ety := &TestStruct{
+				A: rand.Int63(),
+				B: rand.Int63(),
+				C: rand.Int63(),
+			}
+
+			ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1)
+		}
+
+		time.Sleep(time.Second / 2)
+
+		ms.Close()
+
+		if stat, err := os.Stat(filename); err == nil {
+			t.Logf("File Size: %d mb", stat.Size()/1000)
+		} else {
+			t.Error(err)
+		}
+
+	}
+
+	// if err := os.Remove(filename); err != nil {
+	// 	t.Error(err)
+	// }
+}
+
 func TestMapGetSet(t *testing.T) {
 	ety := &models.Entity{
 		Payload: "Hello\n",

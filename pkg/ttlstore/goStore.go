@@ -16,6 +16,9 @@ import (
 
 const DEFAULT_DUMP_NAME = ".temp.db"
 
+// Can be changed, by increceing scanner buffer size manualy
+const SCAN_BUFFER_CAP = 64 * 1024
+
 // Separator in gob encoded file, where 6d6170456e74697479 - _.....mapEntity in HEX
 var SEP, _ = hex.DecodeString("6d6170456e74697479")
 
@@ -63,16 +66,38 @@ func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, TT
 
 	defer wg.Done()
 
-	enc := gob.NewEncoder(file)
+	//buffer to know how many bytes gob has been write
+	double := bytes.NewBuffer([]byte{})
+
+	enc := gob.NewEncoder(io.MultiWriter(file, double))
+
+	var bytesCounter uint64 = 0
+	var objectSize uint64 = 0
 	for {
 		select {
 		case data := <-kv:
+			// Reset Encoder
+			if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
+				// fmt.Println("RESET")
+				enc = gob.NewEncoder(io.MultiWriter(file, double))
+				bytesCounter = 0
+			}
+
 			//TODO: provide using custom encode algorithm
-			//fmt.Printf("Saving: %+v\n", data)
 			if err := enc.Encode(data); err != nil {
 				//TODO: Log err
 				panic(err)
 			}
+
+			bytesCounter += uint64(double.Len())
+
+			if objectSize == 0 {
+				objectSize = bytesCounter
+			}
+
+			double.Reset()
+
+			// fmt.Println(bytesCounter)
 		case <-ctx.Done():
 			//SET FLAG TO DONE. WHEN ALL SAVED EXIT.
 			return
@@ -183,11 +208,20 @@ func (ms *MapStore[K, V]) Load() error {
 		fileBuf.Split(mapEtitySplitFunc)
 
 		var ent mapEntity[K, TTLStoreEntity[V]]
+
 		var pre_separator []byte = SEP
 		for fileBuf.Scan() {
 			b := fileBuf.Bytes()
 			if len(b) > 8 {
+				// fmt.Printf("Pre_Sep: %x\n", pre_separator)
+
+				// fmt.Printf("Start bytes: %x\n", b[:100])
+				// fmt.Printf("End bytes: %x\n", b[len(b)-30:])
+
 				encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
+
+				// fmt.Printf("Start encoded: %x\n", encoded[:100])
+				// fmt.Printf("End encoded: %x\n", encoded[len(encoded)-30:])
 
 				dec := gob.NewDecoder(bytes.NewReader(encoded))
 				for {
@@ -203,7 +237,9 @@ func (ms *MapStore[K, V]) Load() error {
 				}
 			} else {
 				// Store pre_separator value
-				pre_separator = append(b, SEP...)
+				pre_separator = make([]byte, len(b))
+				copy(pre_separator, b)
+				pre_separator = append(pre_separator, SEP...)
 			}
 		}
 
@@ -217,13 +253,38 @@ func (ms *MapStore[K, V]) Load() error {
 
 		defer writer.Close()
 
-		enc := gob.NewEncoder(writer)
+		double := bytes.NewBuffer([]byte{})
+
+		enc := gob.NewEncoder(io.MultiWriter(writer, double))
+
+		var bytesCounter uint64 = 0
+		var objectSize uint64 = 0
 		ms.store.Range(func(key any, val any) bool {
 			if okKey, ok := key.(K); ok {
 				if okVal, ok := val.(TTLStoreEntity[V]); ok {
-					enc.Encode(mapEntity[K, TTLStoreEntity[V]]{Key: okKey, Val: okVal})
+					if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
+						// fmt.Println("RESET")
+						enc = gob.NewEncoder(io.MultiWriter(writer, double))
+						bytesCounter = 0
+					}
+
+					if err := enc.Encode(mapEntity[K, TTLStoreEntity[V]]{Key: okKey, Val: okVal}); err != nil {
+						panic(err)
+					}
+
+					bytesCounter += uint64(double.Len())
+
+					if objectSize == 0 {
+						objectSize = bytesCounter
+					}
+
+					double.Reset()
+
+					// fmt.Println(bytesCounter)
+
 				}
 			}
+
 			return true
 		})
 	}

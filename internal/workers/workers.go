@@ -27,17 +27,10 @@ func (w *Worker) Listen(ctx context.Context, taskChan chan *Task, wg *sync.WaitG
 		case <-ctx.Done():
 			return
 		case t := <-taskChan:
-			fmt.Println("Have: ")
-			w.store.Range(func(key string, val string) bool {
-				fmt.Printf("Key: %s, Val: %s\n", key, val)
-				return true
-			})
-			fmt.Printf("Want: %s\n", t.Key)
 			val, ok := w.store.Get(ctx, t.Key)
 			if !ok {
 				//DO SOME WORK TO FIGURE OUT WHAT VAL IS
 				//...
-				fmt.Println("Working")
 				//Mutate val with found value
 				val = strings.Repeat(t.Key, 3)
 			}
