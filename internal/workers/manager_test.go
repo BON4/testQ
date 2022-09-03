@@ -103,6 +103,12 @@ func TestManagerBigChunks(t *testing.T) {
 	wm.Stop()
 
 	for _, s := range stores {
+		if stat, err := os.Stat(s.Path()); err != nil {
+			t.Error(err)
+			return
+		} else {
+			t.Logf("File: %s, Size: %d\n", stat.Name(), stat.Size())
+		}
 		if err := os.Remove(s.Path()); err != nil {
 			t.Error(err)
 		}

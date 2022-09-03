@@ -1,8 +1,6 @@
 package ttlstore
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -29,25 +27,6 @@ type mapEntity[K string, V any] struct {
 	Val V
 }
 
-func mapEtitySplitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	dataLen := len(data)
-
-	if atEOF && dataLen == 0 {
-		return 0, nil, nil
-	}
-
-	if i := bytes.Index(data, SEP); i >= 0 {
-
-		return i + SEP_LEN, data[0:i], nil
-	}
-
-	if atEOF {
-		return dataLen, data, bufio.ErrFinalToken
-	}
-
-	return 0, nil, nil
-}
-
 type MapStore[K string, V any] struct {
 	wg       *sync.WaitGroup
 	cancel   context.CancelFunc
@@ -59,7 +38,8 @@ type MapStore[K string, V any] struct {
 	dumpPath string
 }
 
-func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, TTLStoreEntity[V]], wg *sync.WaitGroup, file io.Writer) {
+// runSaveDaemon - saves data to file, stops after closed channel encountered
+func runSaveDaemon[K string, V any](kv chan mapEntity[K, TTLStoreEntity[V]], wg *sync.WaitGroup, file io.Writer) {
 	wg.Add(1)
 
 	defer wg.Done()
@@ -68,13 +48,14 @@ func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, TT
 
 	for {
 		select {
-		case data := <-kv:
+		case data, ok := <-kv:
+			if !ok {
+				return
+			}
+
 			if err := encoder.Encode(&data); err != nil {
 				panic(err)
 			}
-		case <-ctx.Done():
-			//SET FLAG TO DONE. WHEN ALL SAVED EXIT.
-			return
 		}
 	}
 }
@@ -148,14 +129,22 @@ func (ms *MapStore[K, V]) Run() error {
 			return err
 		}
 
-		go runSaveDaemon[K, V](ms.ctx, ms.save, ms.wg, ms.dump)
+		go runSaveDaemon[K, V](ms.save, ms.wg, ms.dump)
 	}
 
 	return nil
 }
 
 func (ms *MapStore[K, V]) Close() error {
+
+	//stops gc daemon
+	//and prevents Set method
 	ms.cancel()
+
+	//this will stop save daemon
+	close(ms.save)
+
+	//wait for daemons
 	ms.wg.Wait()
 	if ms.cfg.MapStore.Save {
 		//TODO: Error when close without run
@@ -297,7 +286,7 @@ func (ms *MapStore[K, V]) Set(_ context.Context, key K, val V, ttl time.Duration
 
 	se.SetTTL(t)
 	ms.store.Store(key, se)
-	if ms.cfg.MapStore.Save {
+	if ms.cfg.MapStore.Save && ms.ctx.Err() == nil {
 		ms.save <- mapEntity[K, TTLStoreEntity[V]]{Key: key, Val: se}
 	}
 

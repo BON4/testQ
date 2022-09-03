@@ -3,14 +3,124 @@ package ttlstore
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
 
-	"math/rand"
+	"golang.org/x/exp/constraints"
 
 	models "github.com/BON4/timedQ/internal/models"
 )
+
+type ListStruct[T constraints.Ordered] struct {
+	Slice []T
+}
+
+func (l1 *ListStruct[T]) Compare(l2 *ListStruct[T]) bool {
+	if len(l1.Slice) != len(l2.Slice) {
+		return false
+	}
+	for i := 0; i < len(l1.Slice); i++ {
+		if l1.Slice[i] != l2.Slice[i] {
+			return false
+		}
+	}
+	return true
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func RandStringList(n int) []string {
+	s := make([]string, n)
+	for i := 0; i < n; i++ {
+		s[i] = RandStringRunes(n)
+	}
+	return s
+}
+
+func TestMapGetSetListType(t *testing.T) {
+	ety := &ListStruct[string]{
+		Slice: []string{"a", "b", "c", "d"},
+	}
+
+	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
+
+	ms := NewMapStore[string, *ListStruct[string]](context.Background(), cfg)
+
+	if err := ms.Run(); err != nil {
+		t.Error(err)
+	}
+
+	defer ms.Close()
+
+	ms.Set(context.Background(), "test", ety, -1)
+
+	if providedEty, ok := ms.Get(context.Background(), "test"); ok {
+		if !(ety.Compare(providedEty)) {
+			t.Log("Payloads dont match")
+		}
+	} else {
+		t.Error("Cant get entity")
+	}
+}
+
+func TestMapLargeSlice(t *testing.T) {
+	n := 5
+	m := 200
+
+	filename := "#temp.db"
+	os.Remove(filename)
+
+	cfg := NewMapStoreConfig(time.Second/3, 1, filename, true)
+
+	for i := 0; i < n; i++ {
+		ms := NewMapStore[string, *ListStruct[string]](context.Background(), cfg)
+		if err := ms.Load(); err != nil {
+			t.Error(err)
+			return
+		}
+
+		if err := ms.Run(); err != nil {
+			t.Error(err)
+			return
+		}
+
+		for i := 0; i < m; i++ {
+			ety := &ListStruct[string]{
+				Slice: RandStringList(100),
+			}
+
+			if err := ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+
+		ms.Close()
+
+		if stat, err := os.Stat(filename); err == nil {
+			t.Logf("File Size: %d mb", stat.Size()/1000)
+		} else {
+			t.Error(err)
+			return
+		}
+
+	}
+
+	if err := os.Remove(filename); err != nil {
+		t.Error(err)
+		return
+	}
+}
 
 type TestStruct struct {
 	A int64
@@ -46,10 +156,11 @@ func TestMapLarge(t *testing.T) {
 				C: rand.Int63(),
 			}
 
-			ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1)
+			if err := ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1); err != nil {
+				t.Error(err)
+				return
+			}
 		}
-
-		time.Sleep(time.Second / 2)
 
 		ms.Close()
 
