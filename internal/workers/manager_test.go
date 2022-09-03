@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -100,4 +101,10 @@ func TestManagerBigChunks(t *testing.T) {
 	time.Sleep(time.Second)
 
 	wm.Stop()
+
+	for _, s := range stores {
+		if err := os.Remove(s.Path()); err != nil {
+			t.Error(err)
+		}
+	}
 }

@@ -19,7 +19,7 @@ type TestStruct struct {
 }
 
 func TestMapLarge(t *testing.T) {
-	n := 2
+	n := 5
 	m := 200
 
 	filename := "#temp.db"
@@ -61,9 +61,9 @@ func TestMapLarge(t *testing.T) {
 
 	}
 
-	// if err := os.Remove(filename); err != nil {
-	// 	t.Error(err)
-	// }
+	if err := os.Remove(filename); err != nil {
+		t.Error(err)
+	}
 }
 
 func TestMapGetSet(t *testing.T) {

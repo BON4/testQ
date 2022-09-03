@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -12,12 +11,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/BON4/timedQ/pkg/coder"
 )
 
 const DEFAULT_DUMP_NAME = ".temp.db"
-
-// Can be changed, by increceing scanner buffer size manualy
-const SCAN_BUFFER_CAP = 64 * 1024
 
 // Separator in gob encoded file, where 6d6170456e74697479 - _.....mapEntity in HEX
 var SEP, _ = hex.DecodeString("6d6170456e74697479")
@@ -66,38 +64,14 @@ func runSaveDaemon[K string, V any](ctx context.Context, kv chan mapEntity[K, TT
 
 	defer wg.Done()
 
-	//buffer to know how many bytes gob has been write
-	double := bytes.NewBuffer([]byte{})
+	encoder := coder.NewEncoder[*mapEntity[K, TTLStoreEntity[V]]](file)
 
-	enc := gob.NewEncoder(io.MultiWriter(file, double))
-
-	var bytesCounter uint64 = 0
-	var objectSize uint64 = 0
 	for {
 		select {
 		case data := <-kv:
-			// Reset Encoder
-			if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
-				// fmt.Println("RESET")
-				enc = gob.NewEncoder(io.MultiWriter(file, double))
-				bytesCounter = 0
-			}
-
-			//TODO: provide using custom encode algorithm
-			if err := enc.Encode(data); err != nil {
-				//TODO: Log err
+			if err := encoder.Encode(&data); err != nil {
 				panic(err)
 			}
-
-			bytesCounter += uint64(double.Len())
-
-			if objectSize == 0 {
-				objectSize = bytesCounter
-			}
-
-			double.Reset()
-
-			// fmt.Println(bytesCounter)
 		case <-ctx.Done():
 			//SET FLAG TO DONE. WHEN ALL SAVED EXIT.
 			return
@@ -158,6 +132,10 @@ func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) *MapS
 	return ms
 }
 
+func (ms *MapStore[K, V]) Path() string {
+	return ms.dumpPath
+}
+
 // Run - runs a damon that saves map content to file
 // Call Run, only in case of where cfg.MapStore.Save == true
 // WRRNING: Load shoud be called before Run
@@ -198,50 +176,47 @@ func (ms *MapStore[K, V]) Load() error {
 	// separator ... pre_sepator
 	// ..............^__________ - now pre_separator will be at the end, we need to trim it from end and append it to start.
 	if ms.cfg.MapStore.Save {
+		var err error
 		reader, err := os.OpenFile(ms.dumpPath, os.O_CREATE|os.O_RDONLY, 0666)
 		if err != nil {
 			return err
 		}
 
-		fileBuf := bufio.NewScanner(reader)
+		decoder := coder.NewDecoder[*mapEntity[K, TTLStoreEntity[V]]](reader, SEP)
+		decoder.Decode(func(ent *mapEntity[K, TTLStoreEntity[V]]) {
+			ms.store.Store(ent.Key, ent.Val)
+		})
+		// fileBuf := bufio.NewScanner(reader)
 
-		fileBuf.Split(mapEtitySplitFunc)
+		// fileBuf.Split(mapEtitySplitFunc)
 
-		var ent mapEntity[K, TTLStoreEntity[V]]
+		// var ent mapEntity[K, TTLStoreEntity[V]]
 
-		var pre_separator []byte = SEP
-		for fileBuf.Scan() {
-			b := fileBuf.Bytes()
-			if len(b) > 8 {
-				// fmt.Printf("Pre_Sep: %x\n", pre_separator)
+		// var pre_separator []byte = SEP
+		// for fileBuf.Scan() {
+		// 	b := fileBuf.Bytes()
+		// 	if len(b) > 8 {
+		// 		encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
 
-				// fmt.Printf("Start bytes: %x\n", b[:100])
-				// fmt.Printf("End bytes: %x\n", b[len(b)-30:])
+		// 		dec := gob.NewDecoder(bytes.NewReader(encoded))
+		// 		for {
+		// 			if err := dec.Decode(&ent); err != nil {
+		// 				if err == io.EOF {
+		// 					break
+		// 				} else {
+		// 					return err
+		// 				}
+		// 			}
 
-				encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
-
-				// fmt.Printf("Start encoded: %x\n", encoded[:100])
-				// fmt.Printf("End encoded: %x\n", encoded[len(encoded)-30:])
-
-				dec := gob.NewDecoder(bytes.NewReader(encoded))
-				for {
-					if err := dec.Decode(&ent); err != nil {
-						if err == io.EOF {
-							break
-						} else {
-							return err
-						}
-					}
-					// ms.Set(ms.ctx, ent.Key, ent.Val.Entity, time.Duration(ent.Val.GetTTL()))
-					ms.store.Store(ent.Key, ent.Val)
-				}
-			} else {
-				// Store pre_separator value
-				pre_separator = make([]byte, len(b))
-				copy(pre_separator, b)
-				pre_separator = append(pre_separator, SEP...)
-			}
-		}
+		// 			ms.store.Store(ent.Key, ent.Val)
+		// 		}
+		// 	} else {
+		// 		// Store pre_separator value
+		// 		pre_separator = make([]byte, len(b))
+		// 		copy(pre_separator, b)
+		// 		pre_separator = append(pre_separator, SEP...)
+		// 	}
+		// }
 
 		reader.Close()
 
@@ -252,43 +227,59 @@ func (ms *MapStore[K, V]) Load() error {
 		}
 
 		defer writer.Close()
+		encoder := coder.NewEncoder[*mapEntity[K, TTLStoreEntity[V]]](writer)
 
-		double := bytes.NewBuffer([]byte{})
-
-		enc := gob.NewEncoder(io.MultiWriter(writer, double))
-
-		var bytesCounter uint64 = 0
-		var objectSize uint64 = 0
 		ms.store.Range(func(key any, val any) bool {
 			if okKey, ok := key.(K); ok {
 				if okVal, ok := val.(TTLStoreEntity[V]); ok {
-					if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
-						// fmt.Println("RESET")
-						enc = gob.NewEncoder(io.MultiWriter(writer, double))
-						bytesCounter = 0
+					if err = encoder.Encode(&mapEntity[K, TTLStoreEntity[V]]{
+						Key: okKey,
+						Val: okVal,
+					}); err != nil {
+						return false
 					}
-
-					if err := enc.Encode(mapEntity[K, TTLStoreEntity[V]]{Key: okKey, Val: okVal}); err != nil {
-						panic(err)
-					}
-
-					bytesCounter += uint64(double.Len())
-
-					if objectSize == 0 {
-						objectSize = bytesCounter
-					}
-
-					double.Reset()
-
-					// fmt.Println(bytesCounter)
-
 				}
 			}
-
 			return true
 		})
-	}
 
+		if err != nil {
+			return err
+		}
+		//encoder.Encode(
+		// 	double := bytes.NewBuffer([]byte{})
+
+		// 	enc := gob.NewEncoder(io.MultiWriter(writer, double))
+
+		// 	var bytesCounter uint64 = 0
+		// 	var objectSize uint64 = 0
+		// 	ms.store.Range(func(key any, val any) bool {
+		// 		if okKey, ok := key.(K); ok {
+		// 			if okVal, ok := val.(TTLStoreEntity[V]); ok {
+		// 				if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
+		// 					enc = gob.NewEncoder(io.MultiWriter(writer, double))
+		// 					bytesCounter = 0
+		// 				}
+
+		// 				if err := enc.Encode(mapEntity[K, TTLStoreEntity[V]]{Key: okKey, Val: okVal}); err != nil {
+		// 					panic(err)
+		// 				}
+
+		// 				bytesCounter += uint64(double.Len())
+
+		// 				if objectSize == 0 {
+		// 					objectSize = bytesCounter
+		// 				}
+
+		// 				double.Reset()
+		// 			}
+		// 		}
+
+		// 		return true
+		// 	})
+		// }
+
+	}
 	return nil
 }
 
