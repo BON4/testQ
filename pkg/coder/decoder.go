@@ -4,8 +4,18 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/gob"
+	"encoding/hex"
 	"io"
+	"reflect"
 )
+
+func getType[T any](myvar T) string {
+	if t := reflect.TypeOf(myvar); t.Kind() == reflect.Ptr {
+		return t.Elem().Name()
+	} else {
+		return t.Name()
+	}
+}
 
 func getSlpitFunc(sep []byte, sep_len int) bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -37,26 +47,31 @@ type Decoder[T any] struct {
 
 // NewDecoder - creats new gob decoder wrapper.
 // separator - is hex encoded name-string of T
-func NewDecoder[T any](r io.Reader, separator []byte) *Decoder[T] {
+func NewDecoder[T any](r io.Reader) *Decoder[T] {
 	buf := bufio.NewScanner(r)
+
+	var t T
+
+	separator, _ := hex.DecodeString(hex.EncodeToString([]byte(getType(t))))
+
 	buf.Split(getSlpitFunc(separator, len(separator)))
+
 	return &Decoder[T]{
 		buffer: buf,
 		sep:    separator,
 	}
 }
 
-func (d *Decoder[T]) Decode(callback func(T)) error {
+func (d *Decoder[T]) Decode(callback func(*T)) error {
 	var entity T
 	var pre_separator []byte
 	for d.buffer.Scan() {
 		b := d.buffer.Bytes()
 		if len(b) > 8 {
-
 			encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
 			dec := gob.NewDecoder(bytes.NewReader(encoded))
 			for {
-				if err := dec.Decode(entity); err != nil {
+				if err := dec.Decode(&entity); err != nil {
 					if err == io.EOF {
 						break
 					} else {
@@ -64,7 +79,7 @@ func (d *Decoder[T]) Decode(callback func(T)) error {
 					}
 
 				}
-				callback(entity)
+				callback(&entity)
 			}
 		} else {
 			// Store pre_separator value

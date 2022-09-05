@@ -277,6 +277,9 @@ func TestMapLoad(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
+		if err := ms.Load(); err != nil {
+			t.Error(err)
+		}
 
 		if err := ms.Run(); err != nil {
 			t.Error(err)
@@ -287,16 +290,21 @@ func TestMapLoad(t *testing.T) {
 				Payload: fmt.Sprintf("test:%d", i),
 			}
 
-			ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1)
+			if err := ms.Set(context.Background(), fmt.Sprintf("%d", i), ety, -1); err != nil {
+				t.Error(err)
+				return
+			}
 		}
 
 		time.Sleep(time.Second / 2)
 
 		ms.Close()
+
 	}
 
+	var fileSize1 int64
 	if stat, err := os.Stat(filename); err == nil {
-		t.Logf("File Size: %d mb", stat.Size()/1000)
+		fileSize1 = stat.Size()
 	} else {
 		t.Error(err)
 	}
@@ -306,9 +314,27 @@ func TestMapLoad(t *testing.T) {
 		t.Error(err)
 	}
 
+	if err := newMs.Run(); err != nil {
+		t.Error(err)
+	}
+
+	newMs.Close()
+
+	var fileSize2 int64
+	if stat, err := os.Stat(filename); err == nil {
+		fileSize2 = stat.Size()
+	} else {
+		t.Error(err)
+	}
+
+	if fileSize1 != fileSize2*2 {
+		t.Error("file sizes not match")
+	}
+
 	if err := os.Remove(filename); err != nil {
 		t.Error(err)
 	}
+
 }
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")

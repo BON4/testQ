@@ -27,7 +27,7 @@ func NewEncoder[T any](w io.Writer) *Encoder[T] {
 	}
 }
 
-func (c *Encoder[T]) Encode(data T) error {
+func (c *Encoder[T]) Encode(data *T) error {
 	// Reset Encoder
 	if c.bytesCounter+c.objectSize >= SCAN_BUFFER_CAP {
 		// fmt.Println("RESET")
@@ -35,7 +35,7 @@ func (c *Encoder[T]) Encode(data T) error {
 		c.bytesCounter = 0
 	}
 
-	if err := c.encoder.Encode(data); err != nil {
+	if err := c.encoder.Encode(*data); err != nil {
 		//TODO: Log err
 		return err
 	}

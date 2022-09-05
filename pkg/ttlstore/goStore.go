@@ -2,7 +2,6 @@ package ttlstore
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -15,14 +14,10 @@ import (
 
 const DEFAULT_DUMP_NAME = ".temp.db"
 
-// Separator in gob encoded file, where 6d6170456e74697479 - _.....mapEntity in HEX
-var SEP, _ = hex.DecodeString("6d6170456e74697479")
+// Separator in gob encoded file, where 4d6170456e74697479 - MapEntity in HEX
+//var SEP, _ = hex.DecodeString("4d6170456e74697479")
 
-// var SEP, _ = hex.DecodeString("5fff81030101406d6170456e74697479")
-var PRE_SEP_LEN = 16
-var SEP_LEN = len(SEP)
-
-type mapEntity[K string, V any] struct {
+type MapEntity[K string, V any] struct {
 	Key K
 	Val V
 }
@@ -32,19 +27,19 @@ type MapStore[K string, V any] struct {
 	cancel   context.CancelFunc
 	store    *sync.Map
 	ctx      context.Context
-	save     chan mapEntity[K, TTLStoreEntity[V]]
+	save     chan MapEntity[K, TTLStoreEntity[V]]
 	cfg      TTLStoreConfig
 	dump     *os.File
 	dumpPath string
 }
 
 // runSaveDaemon - saves data to file, stops after closed channel encountered
-func runSaveDaemon[K string, V any](kv chan mapEntity[K, TTLStoreEntity[V]], wg *sync.WaitGroup, file io.Writer) {
+func runSaveDaemon[K string, V any](kv chan MapEntity[K, TTLStoreEntity[V]], wg *sync.WaitGroup, file io.Writer) {
 	wg.Add(1)
 
 	defer wg.Done()
 
-	encoder := coder.NewEncoder[*mapEntity[K, TTLStoreEntity[V]]](file)
+	encoder := coder.NewEncoder[MapEntity[K, TTLStoreEntity[V]]](file)
 
 	for {
 		select {
@@ -96,7 +91,7 @@ func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) *MapS
 		ctx:    msctx,
 		cancel: cancel,
 		//TODO: CHANEL SIZE?
-		save: make(chan mapEntity[K, TTLStoreEntity[V]], 100),
+		save: make(chan MapEntity[K, TTLStoreEntity[V]], 100),
 		cfg:  cfg,
 		dump: nil,
 		wg:   &sync.WaitGroup{},
@@ -171,60 +166,34 @@ func (ms *MapStore[K, V]) Load() error {
 			return err
 		}
 
-		decoder := coder.NewDecoder[*mapEntity[K, TTLStoreEntity[V]]](reader, SEP)
-		decoder.Decode(func(ent *mapEntity[K, TTLStoreEntity[V]]) {
+		decoder := coder.NewDecoder[MapEntity[K, TTLStoreEntity[V]]](reader)
+		if err := decoder.Decode(func(ent *MapEntity[K, TTLStoreEntity[V]]) {
 			ms.store.Store(ent.Key, ent.Val)
-		})
-		// fileBuf := bufio.NewScanner(reader)
+		}); err != nil {
+			return err
+		}
 
-		// fileBuf.Split(mapEtitySplitFunc)
-
-		// var ent mapEntity[K, TTLStoreEntity[V]]
-
-		// var pre_separator []byte = SEP
-		// for fileBuf.Scan() {
-		// 	b := fileBuf.Bytes()
-		// 	if len(b) > 8 {
-		// 		encoded := append(pre_separator, bytes.TrimRight(b, string(pre_separator))...)
-
-		// 		dec := gob.NewDecoder(bytes.NewReader(encoded))
-		// 		for {
-		// 			if err := dec.Decode(&ent); err != nil {
-		// 				if err == io.EOF {
-		// 					break
-		// 				} else {
-		// 					return err
-		// 				}
-		// 			}
-
-		// 			ms.store.Store(ent.Key, ent.Val)
-		// 		}
-		// 	} else {
-		// 		// Store pre_separator value
-		// 		pre_separator = make([]byte, len(b))
-		// 		copy(pre_separator, b)
-		// 		pre_separator = append(pre_separator, SEP...)
-		// 	}
-		// }
-
-		reader.Close()
+		if err := reader.Close(); err != nil {
+			return err
+		}
 
 		writer, err := os.OpenFile(ms.dumpPath, os.O_TRUNC|os.O_WRONLY, 0666)
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 
 		defer writer.Close()
-		encoder := coder.NewEncoder[*mapEntity[K, TTLStoreEntity[V]]](writer)
+		encoder := coder.NewEncoder[MapEntity[K, TTLStoreEntity[V]]](writer)
 
 		ms.store.Range(func(key any, val any) bool {
 			if okKey, ok := key.(K); ok {
 				if okVal, ok := val.(TTLStoreEntity[V]); ok {
-					if err = encoder.Encode(&mapEntity[K, TTLStoreEntity[V]]{
+					if err = encoder.Encode(&MapEntity[K, TTLStoreEntity[V]]{
 						Key: okKey,
 						Val: okVal,
 					}); err != nil {
+						//TODO: Propper logger
+						fmt.Printf("Error while updating storage file: %s\n", err.Error())
 						return false
 					}
 				}
@@ -235,39 +204,6 @@ func (ms *MapStore[K, V]) Load() error {
 		if err != nil {
 			return err
 		}
-		//encoder.Encode(
-		// 	double := bytes.NewBuffer([]byte{})
-
-		// 	enc := gob.NewEncoder(io.MultiWriter(writer, double))
-
-		// 	var bytesCounter uint64 = 0
-		// 	var objectSize uint64 = 0
-		// 	ms.store.Range(func(key any, val any) bool {
-		// 		if okKey, ok := key.(K); ok {
-		// 			if okVal, ok := val.(TTLStoreEntity[V]); ok {
-		// 				if bytesCounter+objectSize >= SCAN_BUFFER_CAP {
-		// 					enc = gob.NewEncoder(io.MultiWriter(writer, double))
-		// 					bytesCounter = 0
-		// 				}
-
-		// 				if err := enc.Encode(mapEntity[K, TTLStoreEntity[V]]{Key: okKey, Val: okVal}); err != nil {
-		// 					panic(err)
-		// 				}
-
-		// 				bytesCounter += uint64(double.Len())
-
-		// 				if objectSize == 0 {
-		// 					objectSize = bytesCounter
-		// 				}
-
-		// 				double.Reset()
-		// 			}
-		// 		}
-
-		// 		return true
-		// 	})
-		// }
-
 	}
 	return nil
 }
@@ -287,7 +223,7 @@ func (ms *MapStore[K, V]) Set(_ context.Context, key K, val V, ttl time.Duration
 	se.SetTTL(t)
 	ms.store.Store(key, se)
 	if ms.cfg.MapStore.Save && ms.ctx.Err() == nil {
-		ms.save <- mapEntity[K, TTLStoreEntity[V]]{Key: key, Val: se}
+		ms.save <- MapEntity[K, TTLStoreEntity[V]]{Key: key, Val: se}
 	}
 
 	return nil
