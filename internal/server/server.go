@@ -71,7 +71,7 @@ func NewServer(configPath string) (*Server, error) {
 	stores := make([]*ttlstore.MapStore[string, string], cfg.ManagerCfg.WorkerNum)
 	for i := uint(0); i < cfg.ManagerCfg.WorkerNum; i++ {
 		ttlCfg := cfg.StoreCfg
-		ttlCfg.SavePath = strings.TrimRight(ttlCfg.SavePath, "/") + fmt.Sprintf("/store%d.db", i)
+		ttlCfg.SavePath = strings.TrimRight(ttlCfg.SavePath, "/") + fmt.Sprintf("/#store%d.db", i)
 
 		log.Infof("Creating db file in: %s", ttlCfg.SavePath)
 
