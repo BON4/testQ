@@ -1,0 +1,12 @@
+app:
+ port: ":8080"
+ log-file: ""
+manager:
+ worker-num: 5
+ val-ttl: 3600s
+store:
+ gc-refresh-time: 1s
+ gc-workers: 1
+ save-path: "/home/home/go/src/timedQ/cmd/app/"
+ save: true
+#log-file: "/home/home/go/src/timedQ/cmd/app/log"	

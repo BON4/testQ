@@ -49,6 +49,7 @@ func runSaveDaemon[K string, V any](kv chan MapEntity[K, TTLStoreEntity[V]], wg 
 			}
 
 			if err := encoder.Encode(&data); err != nil {
+				//TODO: Log here
 				panic(err)
 			}
 		}
@@ -70,13 +71,15 @@ func runGcDaemon[K string, V any](ctx context.Context, store *sync.Map, wg *sync
 					if !(eTime <= 0) && eTime < time.Now().Unix() {
 						store.Delete(k)
 					}
-				} else {
-					// TODO: Make proper logger
-					fmt.Println("Invalid type value found while saving")
 				}
+				// else {
+				// 	// TODO: Make proper logger
+				// 	fmt.Println("Invalid type value found while saving")
+				// }
 				return true
 			})
 		case <-ctx.Done():
+			//TODO: log here
 			return
 		}
 	}
@@ -97,14 +100,14 @@ func NewMapStore[K string, V any](ctx context.Context, cfg TTLStoreConfig) *MapS
 		wg:   &sync.WaitGroup{},
 	}
 
-	dir, fname := filepath.Split(cfg.MapStore.SavePath)
+	dir, fname := filepath.Split(cfg.SavePath)
 	if len(fname) == 0 {
 		ms.dumpPath = dir + DEFAULT_DUMP_NAME
 	} else {
-		ms.dumpPath = cfg.MapStore.SavePath
+		ms.dumpPath = cfg.SavePath
 	}
 
-	go runGcDaemon[K, V](ms.ctx, ms.store, ms.wg, ms.cfg.MapStore.GCRefresh)
+	go runGcDaemon[K, V](ms.ctx, ms.store, ms.wg, ms.cfg.GCRefresh)
 	return ms
 }
 
@@ -116,7 +119,7 @@ func (ms *MapStore[K, V]) Path() string {
 // Call Run, only in case of where cfg.MapStore.Save == true
 // WRRNING: Load shoud be called before Run
 func (ms *MapStore[K, V]) Run() error {
-	if ms.cfg.MapStore.Save {
+	if ms.cfg.Save {
 		var err error
 		ms.dump, err = os.OpenFile(ms.dumpPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 		if err != nil {
@@ -131,6 +134,7 @@ func (ms *MapStore[K, V]) Run() error {
 }
 
 func (ms *MapStore[K, V]) Close() error {
+	//TODO: Log here
 
 	//stops gc daemon
 	//and prevents Set method
@@ -141,7 +145,7 @@ func (ms *MapStore[K, V]) Close() error {
 
 	//wait for daemons
 	ms.wg.Wait()
-	if ms.cfg.MapStore.Save {
+	if ms.cfg.Save {
 		//TODO: Error when close without run
 		return ms.dump.Close()
 	}
@@ -159,7 +163,7 @@ func (ms *MapStore[K, V]) Load() error {
 	// SECOND SCAN:
 	// separator ... pre_sepator
 	// ..............^__________ - now pre_separator will be at the end, we need to trim it from end and append it to start.
-	if ms.cfg.MapStore.Save {
+	if ms.cfg.Save {
 		var err error
 		reader, err := os.OpenFile(ms.dumpPath, os.O_CREATE|os.O_RDONLY, 0666)
 		if err != nil {
@@ -222,7 +226,7 @@ func (ms *MapStore[K, V]) Set(_ context.Context, key K, val V, ttl time.Duration
 
 	se.SetTTL(t)
 	ms.store.Store(key, se)
-	if ms.cfg.MapStore.Save && ms.ctx.Err() == nil {
+	if ms.cfg.Save && ms.ctx.Err() == nil {
 		ms.save <- MapEntity[K, TTLStoreEntity[V]]{Key: key, Val: se}
 	}
 
