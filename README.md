@@ -20,4 +20,4 @@ timedQ> go test ./...
 
 
 ## Service architecture
-![alt text](https://github.com/BON4/timedQ/blob/master/architecture.svg?raw=true)
+![alt text](https://github.com/BON4/timedQ/architecture.svg?raw=true)
