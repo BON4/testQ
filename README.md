@@ -1,5 +1,5 @@
 # Timed Queue (Cache) implementation
-This service will store values provided via API up to certain time. If the value has been accessed, expiration time updates. Key-Value stores in binary file with [ttlStore](github.com/BON4/timedQ/tree/master/pkg/ttlstore) package.
+This service will store values provided via API up to certain time. If the value has been accessed, expiration time updates. Key-Value stores in binary file with [ttlStore](https://github.com/BON4/timedQ/tree/master/pkg/ttlstore) package.
 
 ## Install
 ```
