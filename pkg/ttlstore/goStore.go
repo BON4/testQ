@@ -14,9 +14,6 @@ import (
 
 const DEFAULT_DUMP_NAME = ".temp.db"
 
-// Separator in gob encoded file, where 4d6170456e74697479 - MapEntity in HEX
-//var SEP, _ = hex.DecodeString("4d6170456e74697479")
-
 type MapEntity[K string, V any] struct {
 	Key K
 	Val V

@@ -368,3 +368,18 @@ func BenchmarkMapGetSet(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkMapSet(b *testing.B) {
+	rand.Seed(time.Now().UnixNano())
+	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
+
+	ms := NewMapStore[string, *models.Entity](context.Background(), cfg)
+	defer ms.Close()
+	for i := 0; i < b.N; i++ {
+		key := randSeq(10)
+		ety := &models.Entity{
+			Payload: randSeq(40),
+		}
+		ms.Set(context.Background(), key, ety, -1)
+	}
+}
