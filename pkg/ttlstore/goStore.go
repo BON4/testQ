@@ -223,6 +223,7 @@ func (ms *MapStore[K, V]) Set(_ context.Context, key K, val V, ttl time.Duration
 
 	se.SetTTL(t)
 	ms.store.Store(key, se)
+
 	if ms.cfg.Save && ms.ctx.Err() == nil {
 		ms.save <- MapEntity[K, TTLStoreEntity[V]]{Key: key, Val: se}
 	}
@@ -233,7 +234,6 @@ func (ms *MapStore[K, V]) Set(_ context.Context, key K, val V, ttl time.Duration
 func (ms *MapStore[K, V]) Get(_ context.Context, key K) (V, bool) {
 	var ent TTLStoreEntity[V]
 	if val, ok := ms.store.Load(key); ok {
-		//fmt.Println("Loaded")
 		if ent, ok := val.(TTLStoreEntity[V]); ok {
 			eTime := ent.GetTTL()
 			// 0 | 0 -> 0
@@ -244,7 +244,7 @@ func (ms *MapStore[K, V]) Get(_ context.Context, key K) (V, bool) {
 			if eTime > time.Now().Unix() || (eTime <= 0) {
 				return ent.Entity, true
 			} else {
-				fmt.Printf("Cant assert, got: %+v", val)
+				panic(fmt.Sprintf("Cant assert, got: %+v", val))
 			}
 		}
 	}

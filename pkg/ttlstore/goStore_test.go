@@ -209,6 +209,36 @@ func TestMapGetSet(t *testing.T) {
 	}
 }
 
+func TestMapGetSetPrimetive(t *testing.T) {
+	ety := "hello"
+
+	cfg := NewMapStoreConfig(time.Second/3, 1, "#temp.db", false)
+
+	ms := NewMapStore[string, *string](context.Background(), cfg)
+
+	if err := ms.Run(); err != nil {
+		t.Error(err)
+	}
+
+	defer ms.Close()
+
+	ms.Set(context.Background(), "test", &ety, time.Second*2)
+	time.Sleep(time.Second)
+	if providedEty, ok := ms.Get(context.Background(), "test"); ok {
+		if !(ety == *providedEty) {
+			t.Log("Payloads dont match")
+		}
+	} else {
+		t.Error("Cant get entity")
+	}
+
+	time.Sleep(time.Second * 2)
+
+	if _, ok := ms.Get(context.Background(), "test"); ok {
+		t.Error("Expected error, entity not deleted after ttl")
+	}
+}
+
 func TestMultipleInstans(t *testing.T) {
 	n := 1000
 	ents := make(map[string]models.Entity, n)

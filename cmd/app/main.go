@@ -12,14 +12,18 @@ func main() {
 	flag.Parse()
 
 	if filePath != nil {
+		if *filePath == "" {
+			fmt.Println("Please, provide path to config.yaml")
+		}
+
 		s, err := server.NewServer(*filePath)
 		if err != nil {
-			fmt.Printf("ERROR: %s", err.Error())
+			fmt.Printf("INIT ERROR: %s", err.Error())
 			return
 		}
 
 		if err := s.Run(); err != nil {
-			fmt.Printf("ERROR: %s", err.Error())
+			fmt.Printf("RUN ERROR: %s", err.Error())
 			return
 		}
 	}
