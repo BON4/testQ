@@ -3,9 +3,12 @@ package server
 import (
 	"time"
 
+	_ "github.com/BON4/timedQ/docs"
 	serviceHttp "github.com/BON4/timedQ/internal/service/delivery/http"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // Log to file
@@ -54,6 +57,9 @@ func (s *Server) MapHandlers() error {
 	srvHand := serviceHttp.NewServiceHandler(s.wM, s.logger.WithField("service", "service-name"))
 
 	serviceHttp.NewServiceRoutes(v1, srvHand)
+
+	//Swagger
+	s.g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	return nil
 }

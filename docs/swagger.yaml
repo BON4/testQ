@@ -1,0 +1,73 @@
+basePath: /v1
+definitions:
+  http.serviceGetResponse:
+    properties:
+      decode_url:
+        type: string
+    type: object
+  http.serviceSetRequest:
+    properties:
+      redirect:
+        type: string
+    required:
+    - redirect
+    type: object
+  http.serviceSetResponse:
+    properties:
+      encode_url:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This service will store values provided via API up to certain time.
+    If the value has been accessed, expiration time updates. Key-Value stores in binary
+    file with ttlStore package.
+  title: TimedQ API
+  version: "1.0"
+paths:
+  /:
+    post:
+      consumes:
+      - application/json
+      description: sets key-value, where user is providing value, and gets key
+      parameters:
+      - description: encoded short url
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/http.serviceSetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.serviceSetResponse'
+        "400":
+          description: Bad Request
+          schema: {}
+      summary: Set redirect
+      tags:
+      - general
+  /{key}:
+    get:
+      description: by known key, user can get an url
+      parameters:
+      - description: decoded full url
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.serviceGetResponse'
+      summary: Get redirect
+      tags:
+      - general
+swagger: "2.0"

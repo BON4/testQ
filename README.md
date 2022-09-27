@@ -17,7 +17,8 @@ timedQ\cmd\app> .\app
 ```
 timedQ> go test ./...
 ```
-
+## Docs 
+Swagger docs at /swagger/index.html
 
 ## Service architecture
 ![alt text](https://github.com/BON4/timedQ/blob/master/architecture.svg?raw=true)
