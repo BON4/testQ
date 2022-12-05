@@ -10,7 +10,7 @@ This service will store values provided via API up to certain time. If the value
 ```
 > cd employees\cmd\app
 timedQ\cmd\app> go build .
-timedQ\cmd\app> .\app
+timedQ\cmd\app> .\app -cfg config.yaml
 ```
 
 ## Test
